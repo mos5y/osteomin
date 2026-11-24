@@ -100,6 +100,7 @@ import numpy as np
 
 from src.model import OsteoModel
 from src.config import FieldConfig, ABMConfig, HA_INITIAL_BASELINE
+from src.material import GelMACondition, GelMAPropertyModel
 from src.time_utils import HOURS_PER_DAY
 from src.viz import plot_summary, export_overlay_collagen_ha, export_alp_field_snapshot
 
@@ -223,7 +224,7 @@ def parse_args() -> argparse.Namespace:
         "--grid-spacing",
         type=int,
         default=3,
-        help="grid spacing (n) for grid seeding; one candidate site per n×n block",
+        help="grid spacing (n) for grid seeding; one candidate site per nﾃ溶 block",
     )
     p.add_argument(
         "--seed-coords",
@@ -611,13 +612,13 @@ def parse_args() -> argparse.Namespace:
         "--osteogenic-commitment",
         dest="commitment",
         action="store_true",
-        help="enable preOB → OB differentiation",
+        help="enable preOB 竊・OB differentiation",
     )
     p.add_argument(
         "--no-osteogenic-commitment",
         dest="commitment",
         action="store_false",
-        help="disable preOB → OB differentiation",
+        help="disable preOB 竊・OB differentiation",
     )
     p.set_defaults(commitment=True)
 
@@ -645,6 +646,27 @@ def parse_args() -> argparse.Namespace:
         default=0.0125,
         help="commitment hazard rate k in h^-1 after induction+delay gate",
     )
+    p.add_argument(
+        "--gelma-concentration",
+        type=float,
+        default=None,
+        help="GelMA concentration in w/v percent; enables material coupling",
+    )
+    p.add_argument(
+        "--gelma-dom",
+        type=float,
+        default=None,
+        help="GelMA degree of methacrylation in percent",
+    )
+    p.add_argument(
+        "--gelma-exposure-time",
+        type=float,
+        default=None,
+        help="photo-crosslinking exposure time in seconds",
+    )
+    p.add_argument("--gelma-light-intensity", type=float, default=5.0)
+    p.add_argument("--gelma-wavelength", type=float, default=365.0)
+    p.add_argument("--gelma-photoinitiator", type=float, default=0.1)
 
     p.add_argument(
         "--apoptosis", dest="apoptosis", action="store_true", help="enable apoptosis"
@@ -697,7 +719,7 @@ def parse_args() -> argparse.Namespace:
         "--secretion",
         dest="secretion",
         action="store_true",
-        help="enable secretion (OB → collagen/ALP)",
+        help="enable secretion (OB 竊・collagen/ALP)",
     )
     p.add_argument(
         "--no-secretion",
@@ -921,6 +943,30 @@ def main() -> None:
             0, int(round(float(args.osteo_induction_day) * HOURS_PER_DAY))
         )
     args.commit_k = max(0.0, float(args.commit_k))
+    material_values = (
+        args.gelma_concentration,
+        args.gelma_dom,
+        args.gelma_exposure_time,
+    )
+    if any(value is not None for value in material_values) and not all(
+        value is not None for value in material_values
+    ):
+        raise SystemExit(
+            "--gelma-concentration, --gelma-dom, and --gelma-exposure-time "
+            "must be supplied together"
+        )
+    material_condition = None
+    material_model = None
+    if all(value is not None for value in material_values):
+        material_condition = GelMACondition(
+            gelma_concentration_wv_percent=args.gelma_concentration,
+            degree_of_methacrylation_percent=args.gelma_dom,
+            exposure_time_seconds=args.gelma_exposure_time,
+            light_intensity_mw_per_cm2=args.gelma_light_intensity,
+            wavelength_nm=args.gelma_wavelength,
+            photoinitiator_concentration_wv_percent=args.gelma_photoinitiator,
+        )
+        material_model = GelMAPropertyModel()
     if not (0.0 <= float(args.dex_conc) <= 100.0):
         raise SystemExit(
             f"Dex concentration {args.dex_conc:g} nM is outside the supported non-toxic range of 0 to 100 nM"
@@ -1033,6 +1079,8 @@ def main() -> None:
             hourly_exports=args.hourly_exports,
             show_runtime=args.runtime,
             runtime_every_days=args.runtime_every,
+            material_condition=material_condition,
+            material_model=material_model,
         )
 
         if args.seed_coords is not None:
@@ -1154,3 +1202,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

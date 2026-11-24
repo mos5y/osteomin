@@ -1,5 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
+from dataclasses import replace
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 import json
 import os
@@ -12,6 +13,11 @@ import pandas as pd
 
 from .abm_manager import ABMManager
 from .config import ABMConfig, FieldConfig
+from .material import (
+    GelMACondition,
+    MaterialPropertyModel,
+    material_metadata,
+)
 from .field_manager import FieldManager
 from .modulatoreff import drug_response_summary
 from .agent import CellState
@@ -47,6 +53,8 @@ class OsteoModel:
         hourly_exports: bool = False,
         show_runtime: bool = False,
         runtime_every_days: int = 1,
+        material_condition: GelMACondition | None = None,
+        material_model: MaterialPropertyModel | None = None,
     ):
         self.outdir = Path(outdir)
         self.outdir.mkdir(parents=True, exist_ok=True)
@@ -65,7 +73,22 @@ class OsteoModel:
         self.enable_unique_ids = bool(unique_id_tracking)
 
         self.rng = np.random.default_rng(seed)
-        self.abm = ABMManager(abm_cfg, self.rng, track_cells=self.enable_unique_ids)
+        self.material_condition = material_condition
+        self.material_model = material_model
+        self.material_properties = None
+        effective_abm_cfg = abm_cfg
+        if material_model is not None and material_condition is not None:
+            self.material_properties = material_model.predict(material_condition)
+            effective_abm_cfg = replace(
+                abm_cfg,
+                commit_k_hourly=(
+                    abm_cfg.commit_k_hourly
+                    * self.material_properties.commitment_hazard_multiplier
+                ),
+            )
+        self.abm = ABMManager(
+            effective_abm_cfg, self.rng, track_cells=self.enable_unique_ids
+        )
 
         self.field = FieldManager(
             width=field_cfg.width,
@@ -146,8 +169,11 @@ class OsteoModel:
             "hours_per_day": self.hours_per_day,
             "days": self.days,
             "seed": seed,
-            "abm_cfg": __import__("dataclasses").asdict(abm_cfg),
+            "abm_cfg": __import__("dataclasses").asdict(effective_abm_cfg),
             "field_cfg": __import__("dataclasses").asdict(field_cfg),
+            "material": material_metadata(
+                material_condition, self.material_properties, material_model
+            ),
             "drug_response": drug_response_summary(field_cfg),
             "spatial_every_hours": self.spatial_every,
             "spatial_days": sorted(list(self.spatial_days)),
@@ -562,3 +588,4 @@ class OsteoModel:
         df = pd.DataFrame(self._cell_history)
         save_cell_history_excel(df, out)
         return out
+

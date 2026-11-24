@@ -1,43 +1,50 @@
 # OsteoMin
 
-OsteoMin is a Python cellular automaton model of osteogenic differentiation
-and mineralization in cell culture. It simulates how pre-osteoblasts move,
-divide, and differentiate into osteoblasts on a 2D grid. At hourly intervals,
-the model tracks alkaline phosphatase (ALP), collagen deposition, and
-hydroxyapatite-like mineral accumulation.
+OsteoMin is a 2D lattice-based simulator for osteogenic culture dynamics. It couples an on-lattice agent-based model (ABM) of cell behavior with field-level accumulation of ALP, collagen, and hydroxyapatite-like mineral output.
 
-- [Paper — A cellular automaton model of osteogenic differentiation reveals identifiability limits of endpoint assays](https://doi.org/10.3389/fsysb.2026.1872774)
-- [Experimental data — DataverseNO](https://doi.org/10.18710/FWDTNY)
-- [Simulation code — `main.py`](./main.py) · [Model source — `src/`](./src/)
+The repository is designed for three complementary tasks:
 
-## What the study found
+- running osteogenic simulations (`main.py`)
+- analyzing endpoint assay datasets (`endpointaad/`)
+- fitting model parameters and dose-response terms (`parameterfit/`)
 
-Different simulated trajectories of osteogenic differentiation and matrix
-accumulation can produce similar measurements at the assay endpoints.
-This limits what endpoint ALP, collagen, and mineralization measurements
-can tell us about when the underlying processes occurred.
+## Scientific scope
 
-## What you can do with this repository
+OsteoMin represents osteogenic progression at hourly resolution on a fixed lattice.
 
-- Run and compare simulated osteogenic culture protocols with `main.py`.
-- Analyze ALP, collagen, Alizarin Red S (ARS), and DAPI data with `endpointaad/`.
-- Fit model parameters and dose–response terms with `parameterfit/`.
+- Cell dynamics: pre-osteoblast seeding, motility, proliferation, commitment to osteoblast state, and apoptosis.
+- Matrix dynamics: ALP and collagen deposition plus mineral accumulation through the HA model.
+- Environmental control: osteogenic induction timing, media refresh interval, ascorbic acid (AA) decay, and endpoint-specific Dex/MK-4 modulation.
 
-The model lets you vary the timing of osteogenic induction and medium
-changes, ascorbic acid decay, and the effects of dexamethasone (Dex) and
-menaquinone-4 (MK-4) on individual assay readouts.
+The model is intended for comparative in silico experiments under controlled protocol-like conditions rather than direct patient-level prediction.
+
+## Replaceable material-property interface
+
+`src/material.py` defines the boundary between experimental GelMA conditions and
+the simulator. A property model receives `GelMACondition` and returns
+`MaterialProperties`; `OsteoModel` uses the returned commitment hazard multiplier
+before constructing the ABM and records both the condition and prediction in
+`run.json`. The bundled `GelMAPropertyModel` is a transparent baseline for
+integration testing, not a validated literature fit. Replace it through the
+`MaterialPropertyModel` protocol when a fitted model is available.
+
+The CLI enables this coupling when all three material inputs are supplied:
+
+```bash
+python main.py --gelma-concentration 10 --gelma-dom 50 --gelma-exposure-time 60
+```
 
 ## Repository layout
 
 ```text
 .
-├── main.py
-├── src/
-├── endpointaad/
-├── parameterfit/
-├── sanity/
-├── result_report.md
-└── README.md
+笏懌楳笏 main.py
+笏懌楳笏 src/
+笏懌楳笏 endpointaad/
+笏懌楳笏 parameterfit/
+笏懌楳笏 sanity/
+笏懌楳笏 result_report.md
+笏披楳笏 README.md
 ```
 
 ### Folder guide
@@ -50,7 +57,7 @@ menaquinone-4 (MK-4) on individual assay readouts.
 ## Installation
 
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
@@ -143,7 +150,7 @@ A run writes to `--out` (default `main_out/`). Core artifacts include:
 To verify that major model pathways remain stable after changes:
 
 ```bash
-python sanity/sanity_check1.py
+python3 sanity/sanity_check1.py
 ```
 
 ## Parameter fitting and endpoint analysis
@@ -153,4 +160,10 @@ python sanity/sanity_check1.py
 
 These modules are separate from runtime simulation execution and support model calibration and experimental comparison workflows.
 
+# Preprint:
+https://www.biorxiv.org/content/10.64898/2026.04.23.720356v1
+
+
+# Experimental Data:
+https://doi.org/10.18710/FWDTNY
 
